@@ -14,7 +14,7 @@ def main():
 	segmentation = textgrids.TextGrid(grille)
 
 	phonemes = segmentation['labels']
-	phrase_ortho = 'le chat beige saute sur le lit en grattant les draps'
+	phrase_ortho = 'la vieille femme glisse sur le sol en appuyant les rideaux'
 
 	dico = dico_pron("dico_silai.txt")
 
@@ -43,12 +43,18 @@ def generate_phrase_phonetique(phrase_ortho, dico):
 	spacy_doc = spacy_model(phrase_ortho)
 	phrase_phonetique: List[PhoneticSymbol] = []
 	phrase_phonetique.append(PhoneticSymbol("_"))
-	for token in spacy_doc:
+	for i, token in enumerate(spacy_doc):
 		mot_phonetique = dico[token.text]
 		pos = token.pos_
 		is_sentence_end = token.is_sent_end if token.is_sent_end is not None else False
 		for symbol in mot_phonetique:
 			phrase_phonetique.append(PhoneticSymbol(symbol, pos, is_sentence_end))
+		# liaisons
+		if token.text == "toit" and i < (len(spacy_doc) - 1) and spacy_doc[i+1].text == "en":
+			phrase_phonetique.append(PhoneticSymbol("t"))
+		elif token.text == "en" and i < (len(spacy_doc) - 1) and spacy_doc[i+1].text == "appuyant":
+			phrase_phonetique.append(PhoneticSymbol("n"))
+
 		#check here for liaison  - add ennumerate(spacy_doc) so i can get index and look at the following word	
 	phrase_phonetique.append(PhoneticSymbol("_", is_sentence_end=True))
 	return phrase_phonetique
@@ -60,11 +66,11 @@ def synthese(phrase_phonetique: List[PhoneticSymbol], sound, phonemes):
 	for i in range(len(phrase_phonetique) - 1):
 		phoneme1 = phrase_phonetique[i]
 		phoneme2 = phrase_phonetique[i + 1]
+		print(phoneme1, phoneme2)
 		extrait = extraction_diphones(phoneme1.phonetic_symbol, phoneme2.phonetic_symbol, phonemes, sound)
 		#extrait = modify_sound_pitch(extrait, pitch_factor=3)
 
 		if phoneme1.pos == 'VERB' and phoneme2.pos == 'VERB':
-			print("#########found verb#########")
 			extrait = modify_sound_duration(extrait, duration_factor=0.9)
 			extrait = modify_sound_pitch(extrait, pitch_factor=1)
 		if phoneme1.is_sentence_end and phoneme2.is_sentence_end:
@@ -96,6 +102,7 @@ def extraction_diphones(phoneme1, phoneme2, diphones, sound):
 			print(phoneme1, phoneme2) #pour tester
 
 			return extrait
+	raise RuntimeError(f"diphone {phoneme1} {phoneme2} not found")
 
 def modify_sound_duration(extrait, duration_factor):
 	manipulation = call(extrait, "To Manipulation", 0.01, 75, 600) 
