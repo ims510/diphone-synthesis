@@ -3,7 +3,7 @@ import textgrids
 from parselmouth.praat import call
 import spacy
 from playsound import playsound
-
+from typing import NamedTuple, List
 
 def main():
 
@@ -14,11 +14,12 @@ def main():
 	segmentation = textgrids.TextGrid(grille)
 
 	phonemes = segmentation['labels']
-	phrase_ortho = 'la femme glisse sur le sol'
+	phrase_ortho = 'le chat beige saute sur le lit en grattant les draps'
 
 	dico = dico_pron("dico_silai.txt")
 
-	debut = synthese(phrase_ortho, dico, sound, phonemes)
+	phrase_phonetique = generate_phrase_phonetique(phrase_ortho, dico)
+	debut = synthese(phrase_phonetique, sound, phonemes)
 
 	debut.save("resultat.wav", parselmouth.SoundFileFormat.WAV)
 	playsound('resultat.wav')
@@ -32,36 +33,50 @@ def dico_pron(dico_phon):
 			dico[key] = value
 	return dico
 
-def synthese(phrase_ortho, dico, sound, phonemes):
+class PhoneticSymbol(NamedTuple):
+	phonetic_symbol: str 
+	pos: str = ""
+	is_sentence_end: bool = False
+
+def generate_phrase_phonetique(phrase_ortho, dico):
 	spacy_model = spacy.load("fr_core_news_md")
 	spacy_doc = spacy_model(phrase_ortho)
+	phrase_phonetique: List[PhoneticSymbol] = []
+	phrase_phonetique.append(PhoneticSymbol("_"))
+	for token in spacy_doc:
+		mot_phonetique = dico[token.text]
+		pos = token.pos_
+		is_sentence_end = token.is_sent_end if token.is_sent_end is not None else False
+		for symbol in mot_phonetique:
+			phrase_phonetique.append(PhoneticSymbol(symbol, pos, is_sentence_end))
+		#check here for liaison  - add ennumerate(spacy_doc) so i can get index and look at the following word	
+	phrase_phonetique.append(PhoneticSymbol("_", is_sentence_end=True))
+	return phrase_phonetique
+
+def synthese(phrase_phonetique: List[PhoneticSymbol], sound, phonemes):
 
 	debut = sound.extract_part(0, 0.01, parselmouth.WindowShape.RECTANGULAR, 1, False)
 
-	for token in spacy_doc:
-		phrase_phonetique = dico[token.text]  
-		print('---')
-		print(phrase_phonetique)  # just for testing, remove later
-		print(token.pos_)
+	for i in range(len(phrase_phonetique) - 1):
+		phoneme1 = phrase_phonetique[i]
+		phoneme2 = phrase_phonetique[i + 1]
+		extrait = extraction_diphones(phoneme1.phonetic_symbol, phoneme2.phonetic_symbol, phonemes, sound)
+		#extrait = modify_sound_pitch(extrait, pitch_factor=3)
 
-		for i in range(len(phrase_phonetique) - 1):
-			diphone = phrase_phonetique[i] + phrase_phonetique[i + 1]
-			phoneme1 = diphone[0]
-			phoneme2 = diphone[1]
-			extrait = extraction_diphones(phoneme1, phoneme2, phonemes, sound)
-			#extrait = modify_sound_pitch(extrait, pitch_factor=3)
+		if phoneme1.pos == 'VERB' and phoneme2.pos == 'VERB':
+			print("#########found verb#########")
+			extrait = modify_sound_duration(extrait, duration_factor=0.9)
+			extrait = modify_sound_pitch(extrait, pitch_factor=1)
+		if phoneme1.is_sentence_end and phoneme2.is_sentence_end:
+			extrait = modify_sound_duration(extrait, duration_factor=0.9)
+			extrait = modify_sound_pitch(extrait, pitch_factor=0.95)
 
-			if token.pos_ == 'VERB':
-				print("#########found verb#########")
-				extrait = modify_sound_duration(extrait, duration_factor=1.2)
-				extrait = modify_sound_pitch(extrait, pitch_factor=1)
-			elif token.is_sent_end:
-				extrait = modify_sound_duration(extrait, duration_factor=1.4)
-				extrait = modify_sound_pitch(extrait, pitch_factor=1)
-			else:
-				extrait = modify_sound_duration(extrait, duration_factor=1)
+		extrait = modify_sound_duration(extrait, duration_factor=0.8)
+		
 
-			debut = debut.concatenate([debut, extrait])
+		# if it's not a verb or end of sentence: extrait = modify_sound_duration(extrait, duration_factor=1)
+
+		debut = debut.concatenate([debut, extrait])
 
 	return debut
 
@@ -83,7 +98,7 @@ def extraction_diphones(phoneme1, phoneme2, diphones, sound):
 			return extrait
 
 def modify_sound_duration(extrait, duration_factor):
-	manipulation = call(extrait, "To Manipulation", 0.01, 75, 600)  # to move after extraction
+	manipulation = call(extrait, "To Manipulation", 0.01, 75, 600) 
 	duration_tier = call(manipulation, "Extract duration tier")
 	call(duration_tier, "Remove points between", 0, extrait.duration)
 	call(duration_tier, "Add point", extrait.duration/2, duration_factor)
@@ -109,7 +124,6 @@ if __name__ == "__main__":
 	main()
 
 #TO DO:
-	# add begining and ends
 	# pronunciation link between "le toit __ en miaulant" and "le sol en____appuyant"
 	# make it work with capitals and full stop
 	# user input with options?
