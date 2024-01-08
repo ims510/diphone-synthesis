@@ -13,8 +13,16 @@ def main():
 	sound = parselmouth.Sound(son)
 	segmentation = textgrids.TextGrid(grille)
 
+	sentences = [
+		"le chat noir grimpe sur le toit en miaulant fortement",
+		"le chien marron aboie sur le toit en sautant joyeusement",
+		"le jeune garçon parle sur le toit en riant bruyamment",
+		"le chat beige saute sur le lit en grattant les draps",
+		"la vieille femme glisse sur le sol en appuyant les rideaux"
+	]
+
 	phonemes = segmentation['labels']
-	phrase_ortho = 'la vieille femme glisse sur le sol en appuyant les rideaux'
+	phrase_ortho = sentences[4]
 
 	dico = dico_pron("dico_silai.txt")
 
@@ -74,8 +82,8 @@ def synthese(phrase_phonetique: List[PhoneticSymbol], sound, phonemes):
 			extrait = modify_sound_duration(extrait, duration_factor=0.9)
 			extrait = modify_sound_pitch(extrait, pitch_factor=1)
 		if phoneme1.is_sentence_end and phoneme2.is_sentence_end:
-			extrait = modify_sound_duration(extrait, duration_factor=0.9)
-			extrait = modify_sound_pitch(extrait, pitch_factor=0.95)
+			extrait = modify_sound_duration(extrait, duration_factor=1.1)
+			extrait = modify_sound_pitch(extrait, pitch_factor=0.9)
 
 		extrait = modify_sound_duration(extrait, duration_factor=0.8)
 		
