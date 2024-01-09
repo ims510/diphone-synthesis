@@ -13,24 +13,60 @@ def main():
 	sound = parselmouth.Sound(son)
 	segmentation = textgrids.TextGrid(grille)
 
-	sentences = [
-		"le chat noir grimpe sur le toit en miaulant fortement",
-		"le chien marron aboie sur le toit en sautant joyeusement",
-		"le jeune garçon parle sur le toit en riant bruyamment",
-		"le chat beige saute sur le lit en grattant les draps",
-		"la vieille femme glisse sur le sol en appuyant les rideaux"
-	]
+	user_choices = get_user_input()
+
+	phrase_ortho = " ".join(user_choices)
+	
+	display_sentence(user_choices) 
 
 	phonemes = segmentation['labels']
-	phrase_ortho = sentences[4]
 
 	dico = dico_pron("dico_silai.txt")
 
 	phrase_phonetique = generate_phrase_phonetique(phrase_ortho, dico)
+
+	print(f"La transcription SAMPA de la phrase construite: {phrase_phonetique}")
 	debut = synthese(phrase_phonetique, sound, phonemes)
 
 	debut.save("resultat.wav", parselmouth.SoundFileFormat.WAV)
 	playsound('resultat.wav')
+
+def get_user_input():
+    # Define the table as a list of lists
+    table = [
+        ["le chat noir grimpe", "le chien marron aboie", "le jeune garçon parle", "le chat beige saute", "la vieille femme glisse"],
+        ["sur le toit", "sur le lit", "sur le sol"],
+        ["en miaulant", "en sautant", "en riant", "en grattant", "en appuyant"],
+        ["joyeusement", "bruyamment", "fortement", "les draps", "les rideaux"]
+    ]
+
+    # Get user input for each column
+    choices = []
+    for column in table:
+        if len(choices) > 0:
+            print(f"\nYour sentence so far: {' '.join(choices)}")
+            print("-----------------------------------------------------------")
+
+        print("\n".join(f"{i + 1}. {item}" for i, item in enumerate(column)))
+        user_choice = input(f"Choose an element for your sentence (1-{len(column)}): ")
+        print("-----------------------------------------------------------")
+        # Validate user input
+        while not user_choice.isdigit() or not (1 <= int(user_choice) <= len(column)):
+            print("Invalid input. Please enter a valid number.")
+            user_choice = input(f"Choose an element for your sentence (1-{len(column)}): ")
+
+        # Append the chosen element to the choices list
+        choices.append(column[int(user_choice) - 1])
+
+    return choices
+
+
+def display_sentence(user_choices):
+	user_choices[0] = user_choices[0].capitalize()
+	user_choices[len(user_choices)-1] =  user_choices[len(user_choices)-1] + "."
+	print("\nLa phrase construite: ")
+	print(" ".join(user_choices))
+
 
 # on va créer le dictionnaire de prononciation
 def dico_pron(dico_phon):
@@ -63,7 +99,7 @@ def generate_phrase_phonetique(phrase_ortho, dico):
 		elif token.text == "en" and i < (len(spacy_doc) - 1) and spacy_doc[i+1].text == "appuyant":
 			phrase_phonetique.append(PhoneticSymbol("n"))
 
-		#check here for liaison  - add ennumerate(spacy_doc) so i can get index and look at the following word	
+		
 	phrase_phonetique.append(PhoneticSymbol("_", is_sentence_end=True))
 	return phrase_phonetique
 
@@ -74,7 +110,7 @@ def synthese(phrase_phonetique: List[PhoneticSymbol], sound, phonemes):
 	for i in range(len(phrase_phonetique) - 1):
 		phoneme1 = phrase_phonetique[i]
 		phoneme2 = phrase_phonetique[i + 1]
-		print(phoneme1, phoneme2)
+		# print(phoneme1, phoneme2)
 		extrait = extraction_diphones(phoneme1.phonetic_symbol, phoneme2.phonetic_symbol, phonemes, sound)
 		#extrait = modify_sound_pitch(extrait, pitch_factor=3)
 
@@ -107,7 +143,7 @@ def extraction_diphones(phoneme1, phoneme2, diphones, sound):
 			milieu_phoneme2 = sound.get_nearest_zero_crossing(milieu_phoneme2, 1)
 
 			extrait = sound.extract_part(milieu_phoneme1, milieu_phoneme2, parselmouth.WindowShape.RECTANGULAR, 1, False)
-			print(phoneme1, phoneme2) #pour tester
+			# print(phoneme1, phoneme2) #pour tester
 
 			return extrait
 	raise RuntimeError(f"diphone {phoneme1} {phoneme2} not found")
@@ -139,7 +175,6 @@ if __name__ == "__main__":
 	main()
 
 #TO DO:
-	# pronunciation link between "le toit __ en miaulant" and "le sol en____appuyant"
 	# make it work with capitals and full stop
 	# user input with options?
 		# add options to make it go fast, slow, high, low pitch 
